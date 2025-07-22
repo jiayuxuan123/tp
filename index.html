@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>图片圆角工具</title>
+    <title>图片圆角工具 - 优化流畅度</title>
     <style>
         /* --- Core Styles --- */
         body {
@@ -128,10 +128,9 @@
             box-sizing: border-box;
             z-index: 0;
             margin: auto; 
-            /* 尝试添加硬件加速属性 */
             transform: translateZ(0); 
             -webkit-transform: translateZ(0);
-            will-change: border-radius; /* 提示浏览器此属性会变化 */
+            will-change: border-radius; 
         }
 
         #imagePreviewContainer.loaded #imagePreview {
@@ -271,11 +270,7 @@
 
                     currentImage.onload = function() {
                         if (currentImage.naturalWidth === 0 || currentImage.naturalHeight === 0) {
-                            if (typeof webapp !== 'undefined') {
-                                webapp.toast('无法加载图片，请检查图片文件是否损坏或为空。');
-                            } else {
-                                alert('无法加载图片，请检查图片文件是否损坏或为空。');
-                            }
+                            alert('无法加载图片，请检查图片文件是否损坏或为空。'); // 换回 alert
                             resetToolState();
                             return;
                         }
@@ -289,16 +284,11 @@
                         imagePreview.style.display = 'block'; 
 
                         borderRadiusSlider.value = 0;
-                        // 初始时立即更新一次，确保显示正确
                         updateBorderRadiusImmediate(); 
                         saveImageButton.style.display = 'inline-block';
                     };
                     currentImage.onerror = function() {
-                        if (typeof webapp !== 'undefined') {
-                            webapp.toast('图片加载失败，请尝试其他图片格式或文件。');
-                        } else {
-                            alert('图片加载失败，请尝试其他图片格式或文件。');
-                        }
+                        alert('图片加载失败，请尝试其他图片格式或文件。'); // 换回 alert
                         resetToolState();
                     };
                     currentImage.src = originalImageDataURL;
@@ -309,7 +299,6 @@
             }
         });
 
-        // 节流函数
         function throttle(func, delay) {
             let timeoutId;
             let lastArgs;
@@ -334,7 +323,6 @@
                 }
                 return lastResult;
             }
-            // 允许立即执行一次，例如在初始化时
             throttled.immediate = function(...args) {
                 lastExecTime = Date.now();
                 return func.apply(this, args);
@@ -342,14 +330,12 @@
             return throttled;
         }
 
-        // 立即更新圆角，用于初始化或非滑动场景
         function updateBorderRadiusImmediate() {
             const value = borderRadiusSlider.value;
             imagePreview.style.borderRadius = `${value}px`;
             borderRadiusValueSpan.textContent = `${value}px`;
         }
 
-        // 节流后的更新函数，每 16ms 最多执行一次 (大约 60fps)
         const throttledUpdateBorderRadius = throttle(updateBorderRadiusImmediate, 16);
 
         borderRadiusSlider.addEventListener('input', throttledUpdateBorderRadius);
@@ -357,11 +343,7 @@
 
         saveImageButton.addEventListener('click', function() {
             if (!originalImageDataURL || !originalImageFile || !currentImage.complete || currentImage.naturalWidth === 0) {
-                if (typeof webapp !== 'undefined') {
-                    webapp.toast('图片尚未完全加载或图片数据无效，无法保存！');
-                } else {
-                    alert('图片尚未完全加载或图片数据无效，无法保存！');
-                }
+                alert('图片尚未完全加载或图片数据无效，无法保存！'); // 换回 alert
                 return;
             }
 
@@ -401,21 +383,15 @@
             const originalExtension = originalImageFile.name.split('.').pop() || 'png';
             let filename = `rounded_image_${timestamp}.${originalExtension}`;
 
-            const targetDirectory = 'DCIM/Screenshots'; 
-            const fullPath = `${targetDirectory}/${filename}`; 
-
-            if (typeof webapp !== 'undefined') {
-                webapp.storage(fullPath, roundedImageDataURL); 
-                webapp.toast(`图片已保存到 ${targetDirectory}/${filename}`); 
-            } else {
-                alert('WebIDE 接口 (webapp) 未找到，无法保存文件。请在支持 WebIDE 的环境中运行。');
-                const downloadLink = document.createElement('a');
-                downloadLink.href = roundedImageDataURL;
-                downloadLink.download = filename;
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-            }
+            // *** 修改保存逻辑为传统的网页下载方式 ***
+            const downloadLink = document.createElement('a');
+            downloadLink.href = roundedImageDataURL;
+            downloadLink.download = filename; // 设置下载文件名
+            document.body.appendChild(downloadLink); // 临时添加到 DOM
+            downloadLink.click(); // 模拟点击
+            document.body.removeChild(downloadLink); // 从 DOM 移除
+            // 提示用户下载已开始
+            alert(`图片 "${filename}" 已开始下载。`); // 换回 alert
         });
 
         function resetToolState() {
@@ -428,11 +404,10 @@
             currentImage.onload = null;
             currentImage.onerror = null;
             borderRadiusSlider.value = 0;
-            updateBorderRadiusImmediate(); // 重置时立即更新
+            updateBorderRadiusImmediate(); 
             imagePreviewContainer.style.minHeight = '180px'; 
         }
 
-        // 阻止滑块上的触摸事件触发浏览器导航
         let isDraggingSlider = false;
 
         borderRadiusSlider.addEventListener('pointerdown', (e) => {
@@ -473,13 +448,13 @@
             e.stopPropagation();
         });
 
-
-        if (typeof webapp !== 'undefined') {
-            if (!webapp.bestow()) {
-                webapp.toast('需要存储权限才能保存图片，请授权。');
-                webapp.rights();
-            }
-        }
+        // 移除 webapp 相关的权限检查和 toast 提示，因为不再使用 webapp 接口
+        // if (typeof webapp !== 'undefined') {
+        //     if (!webapp.bestow()) {
+        //         webapp.toast('需要存储权限才能保存图片，请授权。');
+        //         webapp.rights();
+        //     }
+        // }
     </script>
 </body>
 </html>
