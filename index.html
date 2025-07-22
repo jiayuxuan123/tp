@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>图片圆角工具 - 最终尝试</title>
+    <title>图片圆角工具</title>
     <style>
         /* --- Core Styles --- */
         body {
@@ -73,13 +73,12 @@
         /* --- Image Preview Area --- */
         #imagePreviewContainer {
             width: 100%; 
-            max-width: 300px; /* *** 调整为更保守的预览最大宽度 *** */
-            /* 移除 max-height，让高度自然撑开，但受图片尺寸和object-fit限制 */
-            min-height: 180px; /* 未加载时的最小高度 */
+            max-width: 300px; 
+            min-height: 180px; 
             
             display: flex;
-            justify-content: center; /* 水平居中 */
-            align-items: center;   /* 垂直居中 */
+            justify-content: center; 
+            align-items: center;   
             margin: 30px auto;
             border: 2px dashed #ccc;
             border-radius: 12px;
@@ -87,9 +86,8 @@
             overflow: hidden; 
             position: relative;
             box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
-            /* 移除过渡，避免任何尺寸变化时的视觉抖动 */
             transition: none; 
-            box-sizing: border-box; /* 确保padding和border不撑大容器 */
+            box-sizing: border-box; 
         }
 
         #imagePreviewContainer::before {
@@ -117,13 +115,11 @@
         }
 
         #imagePreview {
-            /* *** 核心修改：移除 width: 100%; height: 100%; *** */
-            /* 让图片元素自身根据其内容和object-fit来确定大小 */
-            max-width: 100%; /* 确保图片不会超出容器宽度 */
-            max-height: 100%; /* 确保图片不会超出容器高度 */
+            max-width: 100%; 
+            max-height: 100%; 
             border-radius: 0;
-            object-fit: contain; /* 图片内容保持比例，并在自身元素内居中 */
-            object-position: center; /* 确保图片内容在图片元素内居中 */
+            object-fit: contain; 
+            object-position: center; 
             display: block;
             opacity: 0;
             transition: border-radius 0.2s ease-out, opacity 0.4s ease-in-out;
@@ -131,7 +127,7 @@
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
             box-sizing: border-box;
             z-index: 0;
-            margin: auto; /* *** 增加 margin: auto 来辅助居中，针对 img 元素自身 *** */
+            margin: auto; 
         }
 
         #imagePreviewContainer.loaded #imagePreview {
@@ -163,6 +159,8 @@
             -webkit-transition: .2s;
             transition: opacity .2s;
             border-radius: 4px;
+            /* 阻止在滑块上进行触摸操作时，浏览器默认的滚动或导航行为 */
+            touch-action: pan-y; /* 允许垂直滚动，但阻止水平滚动 */
         }
 
         input.slider::-webkit-slider-thumb {
@@ -282,13 +280,10 @@
                         imagePreview.src = originalImageDataURL;
                         imagePreviewContainer.classList.add('loaded');
                         
-                        // 图片加载后，移除 min-height 确保容器能被图片内容精确撑开
-                        imagePreviewContainer.style.minHeight = '0'; // 或者 'auto'
-                        // 为了确保在图片加载完成后，img元素能立即获得正确的居中布局
-                        // 强制浏览器重新计算布局，虽然不推荐，但在极端情况下可以尝试
-                        imagePreview.style.display = 'none'; // 隐藏
-                        imagePreview.offsetHeight; // 强制回流/重绘
-                        imagePreview.style.display = 'block'; // 显示
+                        imagePreviewContainer.style.minHeight = '0'; 
+                        imagePreview.style.display = 'none'; 
+                        imagePreview.offsetHeight; 
+                        imagePreview.style.display = 'block'; 
 
                         borderRadiusSlider.value = 0;
                         updateBorderRadius();
@@ -392,9 +387,53 @@
             currentImage.onerror = null;
             borderRadiusSlider.value = 0;
             updateBorderRadius();
-            // 重置 min-height
             imagePreviewContainer.style.minHeight = '180px'; 
         }
+
+        // 阻止滑块上的触摸事件触发浏览器导航
+        let isDraggingSlider = false;
+
+        borderRadiusSlider.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'touch') {
+                isDraggingSlider = true;
+                // 阻止默认行为，防止触摸开始时触发滚动或导航
+                e.stopPropagation(); 
+            }
+        });
+
+        borderRadiusSlider.addEventListener('pointermove', (e) => {
+            if (isDraggingSlider && e.pointerType === 'touch') {
+                // 阻止默认行为，防止触摸移动时触发滚动或导航
+                e.preventDefault(); 
+                e.stopPropagation();
+            }
+        });
+
+        borderRadiusSlider.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'touch') {
+                isDraggingSlider = false;
+                e.stopPropagation();
+            }
+        });
+
+        // 针对旧版浏览器或特定情况，也可以监听 touch 事件
+        borderRadiusSlider.addEventListener('touchstart', (e) => {
+            isDraggingSlider = true;
+            e.stopPropagation();
+        }, { passive: false }); // 使用 passive: false 允许 preventDefault
+
+        borderRadiusSlider.addEventListener('touchmove', (e) => {
+            if (isDraggingSlider) {
+                e.preventDefault(); // 阻止默认的滚动/导航行为
+                e.stopPropagation();
+            }
+        }, { passive: false });
+
+        borderRadiusSlider.addEventListener('touchend', (e) => {
+            isDraggingSlider = false;
+            e.stopPropagation();
+        });
+
 
         if (typeof webapp !== 'undefined') {
             if (!webapp.bestow()) {
