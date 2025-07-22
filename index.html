@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>图片圆角工具 - 最终尝试</title>
+    <style>
+        /* --- Core Styles --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f3f6f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-top: 40px;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2.2em;
+            font-weight: 600;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            width: calc(100% - 40px);
+            max-width: 500px;
+            text-align: center;
+            margin-bottom: 40px;
+            box-sizing: border-box;
+        }
+
+        /* --- File Upload Button --- */
+        input::-webkit-file-upload-button {
+            display: none;
+        }
+
+        label.custom-file-upload {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #3498db;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s ease, transform 0.2s ease-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+            text-decoration: none;
+        }
+
+        label.custom-file-upload:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
+        }
+
+        label.custom-file-upload:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        }
+
+        /* --- Image Preview Area --- */
+        #imagePreviewContainer {
+            width: 100%; 
+            max-width: 300px; /* *** 调整为更保守的预览最大宽度 *** */
+            /* 移除 max-height，让高度自然撑开，但受图片尺寸和object-fit限制 */
+            min-height: 180px; /* 未加载时的最小高度 */
+            
+            display: flex;
+            justify-content: center; /* 水平居中 */
+            align-items: center;   /* 垂直居中 */
+            margin: 30px auto;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            background-color: #fdfdfd;
+            overflow: hidden; 
+            position: relative;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
+            /* 移除过渡，避免任何尺寸变化时的视觉抖动 */
+            transition: none; 
+            box-sizing: border-box; /* 确保padding和border不撑大容器 */
+        }
+
+        #imagePreviewContainer::before {
+            content: "";
+            display: block;
+            width: 96px;
+            height: 96px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2395a5a6"><path d="M0 0h24v24H0z" fill="none"/><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #imagePreviewContainer.loaded::before {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #imagePreview {
+            /* *** 核心修改：移除 width: 100%; height: 100%; *** */
+            /* 让图片元素自身根据其内容和object-fit来确定大小 */
+            max-width: 100%; /* 确保图片不会超出容器宽度 */
+            max-height: 100%; /* 确保图片不会超出容器高度 */
+            border-radius: 0;
+            object-fit: contain; /* 图片内容保持比例，并在自身元素内居中 */
+            object-position: center; /* 确保图片内容在图片元素内居中 */
+            display: block;
+            opacity: 0;
+            transition: border-radius 0.2s ease-out, opacity 0.4s ease-in-out;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            box-sizing: border-box;
+            z-index: 0;
+            margin: auto; /* *** 增加 margin: auto 来辅助居中，针对 img 元素自身 *** */
+        }
+
+        #imagePreviewContainer.loaded #imagePreview {
+            opacity: 1;
+        }
+
+        /* --- Slider Control --- */
+        .slider-container {
+            width: 100%;
+            margin-top: 30px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #555;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        input.slider {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.9;
+            -webkit-transition: .2s;
+            transition: opacity .2s;
+            border-radius: 4px;
+        }
+
+        input.slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        input.slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #borderRadiusValue {
+            display: inline-block;
+            margin-left: 10px;
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        /* --- Save Image Button --- */
+        .button-group {
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        button.save-image-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #2ecc71;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s ease, transform 0.2s ease-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+            text-decoration: none;
+        }
+
+        button.save-image-button:hover {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+        }
+
+        button.save-image-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 8px rgba(46, 204, 113, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1>图片圆角工具</h1>
+
+    <div class="container">
+        <label for="imageUpload" class="custom-file-upload">
+            选择图片
+        </label>
+        <input type="file" id="imageUpload" accept="image/*">
+
+        <div id="imagePreviewContainer">
+            <img id="imagePreview" src="#" alt="图片预览">
+        </div>
+
+        <div class="slider-container">
+            <label for="borderRadius">圆角大小: <span id="borderRadiusValue">0px</span></label>
+            <input type="range" id="borderRadius" min="0" max="200" value="0" class="slider">
+        </div>
+
+        <div class="button-group">
+            <button id="saveImageButton" class="save-image-button" style="display: none;">保存图片</button>
+        </div>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const borderRadiusSlider = document.getElementById('borderRadius');
+        const borderRadiusValueSpan = document.getElementById('borderRadiusValue');
+        const saveImageButton = document.getElementById('saveImageButton');
+
+        let originalImageDataURL = '';
+        let originalImageFile = null;
+        let currentImage = new Image();
+
+        imageUpload.addEventListener('change', function(event) {
+            const file = event.target.files?.[0];
+            if (file) {
+                originalImageFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    originalImageDataURL = e.target.result;
+
+                    currentImage.onload = function() {
+                        if (currentImage.naturalWidth === 0 || currentImage.naturalHeight === 0) {
+                            if (typeof webapp !== 'undefined') {
+                                webapp.toast('无法加载图片，请检查图片文件是否损坏或为空。');
+                            } else {
+                                alert('无法加载图片，请检查图片文件是否损坏或为空。');
+                            }
+                            resetToolState();
+                            return;
+                        }
+
+                        imagePreview.src = originalImageDataURL;
+                        imagePreviewContainer.classList.add('loaded');
+                        
+                        // 图片加载后，移除 min-height 确保容器能被图片内容精确撑开
+                        imagePreviewContainer.style.minHeight = '0'; // 或者 'auto'
+                        // 为了确保在图片加载完成后，img元素能立即获得正确的居中布局
+                        // 强制浏览器重新计算布局，虽然不推荐，但在极端情况下可以尝试
+                        imagePreview.style.display = 'none'; // 隐藏
+                        imagePreview.offsetHeight; // 强制回流/重绘
+                        imagePreview.style.display = 'block'; // 显示
+
+                        borderRadiusSlider.value = 0;
+                        updateBorderRadius();
+                        saveImageButton.style.display = 'inline-block';
+                    };
+                    currentImage.onerror = function() {
+                        if (typeof webapp !== 'undefined') {
+                            webapp.toast('图片加载失败，请尝试其他图片格式或文件。');
+                        } else {
+                            alert('图片加载失败，请尝试其他图片格式或文件。');
+                        }
+                        resetToolState();
+                    };
+                    currentImage.src = originalImageDataURL;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                resetToolState();
+            }
+        });
+
+        borderRadiusSlider.addEventListener('input', updateBorderRadius);
+
+        function updateBorderRadius() {
+            const value = borderRadiusSlider.value;
+            imagePreview.style.borderRadius = `${value}px`;
+            borderRadiusValueSpan.textContent = `${value}px`;
+        }
+
+        saveImageButton.addEventListener('click', function() {
+            if (!originalImageDataURL || !originalImageFile || !currentImage.complete || currentImage.naturalWidth === 0) {
+                if (typeof webapp !== 'undefined') {
+                    webapp.toast('图片尚未完全加载或图片数据无效，无法保存！');
+                } else {
+                    alert('图片尚未完全加载或图片数据无效，无法保存！');
+                }
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const borderRadius = parseInt(borderRadiusSlider.value);
+
+            const imgWidth = currentImage.naturalWidth;
+            const imgHeight = currentImage.naturalHeight;
+            canvas.width = imgWidth;
+            canvas.height = imgHeight;
+
+            const maxRadiusPossible = Math.min(imgWidth, imgHeight) / 2;
+            const effectiveBorderRadius = Math.min(borderRadius, maxRadiusPossible);
+
+            ctx.beginPath();
+            ctx.moveTo(effectiveBorderRadius, 0);
+            ctx.lineTo(imgWidth - effectiveBorderRadius, 0);
+            ctx.quadraticCurveTo(imgWidth, 0, imgWidth, effectiveBorderRadius);
+            ctx.lineTo(imgWidth, imgHeight - effectiveBorderRadius);
+            ctx.quadraticCurveTo(imgWidth, imgHeight, imgWidth - effectiveBorderRadius, imgHeight);
+            ctx.lineTo(effectiveBorderRadius, imgHeight);
+            ctx.quadraticCurveTo(0, imgHeight, 0, imgHeight - effectiveBorderRadius);
+            ctx.lineTo(0, effectiveBorderRadius);
+            ctx.quadraticCurveTo(0, 0, effectiveBorderRadius, 0);
+            ctx.closePath();
+            ctx.clip();
+
+            ctx.drawImage(currentImage, 0, 0, imgWidth, imgHeight);
+
+            const imageType = originalImageFile.type?.startsWith('image/') ? originalImageFile.type : 'image/png';
+            const quality = (imageType === 'image/jpeg' || imageType === 'image/webp') ? 0.92 : undefined;
+
+            const roundedImageDataURL = canvas.toDataURL(imageType, quality);
+
+            const timestamp = new Date().getTime();
+            const originalExtension = originalImageFile.name.split('.').pop() || 'png';
+            let filename = `rounded_image_${timestamp}.${originalExtension}`;
+
+            const targetDirectory = 'DCIM/Screenshots'; 
+            const fullPath = `${targetDirectory}/${filename}`; 
+
+            if (typeof webapp !== 'undefined') {
+                webapp.storage(fullPath, roundedImageDataURL); 
+                webapp.toast(`图片已保存到 ${targetDirectory}/${filename}`); 
+            } else {
+                alert('WebIDE 接口 (webapp) 未找到，无法保存文件。请在支持 WebIDE 的环境中运行。');
+                const downloadLink = document.createElement('a');
+                downloadLink.href = roundedImageDataURL;
+                downloadLink.download = filename;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+            }
+        });
+
+        function resetToolState() {
+            imagePreviewContainer.classList.remove('loaded');
+            imagePreview.src = "#";
+            saveImageButton.style.display = 'none';
+            originalImageDataURL = '';
+            originalImageFile = null;
+            currentImage.src = '';
+            currentImage.onload = null;
+            currentImage.onerror = null;
+            borderRadiusSlider.value = 0;
+            updateBorderRadius();
+            // 重置 min-height
+            imagePreviewContainer.style.minHeight = '180px'; 
+        }
+
+        if (typeof webapp !== 'undefined') {
+            if (!webapp.bestow()) {
+                webapp.toast('需要存储权限才能保存图片，请授权。');
+                webapp.rights();
+            }
+        }
+    </script>
+</body>
+</html>
