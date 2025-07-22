@@ -128,6 +128,10 @@
             box-sizing: border-box;
             z-index: 0;
             margin: auto; 
+            /* 尝试添加硬件加速属性 */
+            transform: translateZ(0); 
+            -webkit-transform: translateZ(0);
+            will-change: border-radius; /* 提示浏览器此属性会变化 */
         }
 
         #imagePreviewContainer.loaded #imagePreview {
@@ -159,8 +163,7 @@
             -webkit-transition: .2s;
             transition: opacity .2s;
             border-radius: 4px;
-            /* 阻止在滑块上进行触摸操作时，浏览器默认的滚动或导航行为 */
-            touch-action: pan-y; /* 允许垂直滚动，但阻止水平滚动 */
+            touch-action: pan-y; 
         }
 
         input.slider::-webkit-slider-thumb {
@@ -286,7 +289,8 @@
                         imagePreview.style.display = 'block'; 
 
                         borderRadiusSlider.value = 0;
-                        updateBorderRadius();
+                        // 初始时立即更新一次，确保显示正确
+                        updateBorderRadiusImmediate(); 
                         saveImageButton.style.display = 'inline-block';
                     };
                     currentImage.onerror = function() {
@@ -305,13 +309,51 @@
             }
         });
 
-        borderRadiusSlider.addEventListener('input', updateBorderRadius);
+        // 节流函数
+        function throttle(func, delay) {
+            let timeoutId;
+            let lastArgs;
+            let lastThis;
+            let lastResult;
+            let lastExecTime = 0;
 
-        function updateBorderRadius() {
+            function throttled(...args) {
+                const now = Date.now();
+                lastArgs = args;
+                lastThis = this;
+
+                if (now - lastExecTime > delay) {
+                    lastExecTime = now;
+                    lastResult = func.apply(lastThis, lastArgs);
+                } else {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        lastExecTime = Date.now();
+                        lastResult = func.apply(lastThis, lastArgs);
+                    }, delay - (now - lastExecTime));
+                }
+                return lastResult;
+            }
+            // 允许立即执行一次，例如在初始化时
+            throttled.immediate = function(...args) {
+                lastExecTime = Date.now();
+                return func.apply(this, args);
+            };
+            return throttled;
+        }
+
+        // 立即更新圆角，用于初始化或非滑动场景
+        function updateBorderRadiusImmediate() {
             const value = borderRadiusSlider.value;
             imagePreview.style.borderRadius = `${value}px`;
             borderRadiusValueSpan.textContent = `${value}px`;
         }
+
+        // 节流后的更新函数，每 16ms 最多执行一次 (大约 60fps)
+        const throttledUpdateBorderRadius = throttle(updateBorderRadiusImmediate, 16);
+
+        borderRadiusSlider.addEventListener('input', throttledUpdateBorderRadius);
+
 
         saveImageButton.addEventListener('click', function() {
             if (!originalImageDataURL || !originalImageFile || !currentImage.complete || currentImage.naturalWidth === 0) {
@@ -386,7 +428,7 @@
             currentImage.onload = null;
             currentImage.onerror = null;
             borderRadiusSlider.value = 0;
-            updateBorderRadius();
+            updateBorderRadiusImmediate(); // 重置时立即更新
             imagePreviewContainer.style.minHeight = '180px'; 
         }
 
@@ -396,14 +438,12 @@
         borderRadiusSlider.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'touch') {
                 isDraggingSlider = true;
-                // 阻止默认行为，防止触摸开始时触发滚动或导航
                 e.stopPropagation(); 
             }
         });
 
         borderRadiusSlider.addEventListener('pointermove', (e) => {
             if (isDraggingSlider && e.pointerType === 'touch') {
-                // 阻止默认行为，防止触摸移动时触发滚动或导航
                 e.preventDefault(); 
                 e.stopPropagation();
             }
@@ -416,15 +456,14 @@
             }
         });
 
-        // 针对旧版浏览器或特定情况，也可以监听 touch 事件
         borderRadiusSlider.addEventListener('touchstart', (e) => {
             isDraggingSlider = true;
             e.stopPropagation();
-        }, { passive: false }); // 使用 passive: false 允许 preventDefault
+        }, { passive: false }); 
 
         borderRadiusSlider.addEventListener('touchmove', (e) => {
             if (isDraggingSlider) {
-                e.preventDefault(); // 阻止默认的滚动/导航行为
+                e.preventDefault(); 
                 e.stopPropagation();
             }
         }, { passive: false });
